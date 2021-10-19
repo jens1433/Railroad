@@ -9,12 +9,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
+import java.util.stream.Stream;
 
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.filefilter.FileFilterUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.materialdesign2.MaterialDesignF;
@@ -33,8 +35,11 @@ import io.github.palexdev.materialfx.controls.MFXTextField;
 import io.github.palexdev.materialfx.controls.enums.StepperToggleState;
 import io.github.palexdev.materialfx.utils.BindingUtils;
 import io.github.railroad.Railroad;
+import io.github.railroad.project.ProjectInfo.MinecraftVersion;
+import io.github.railroad.project.ProjectInfo.ModType;
 import io.github.railroad.project.lang.LangProvider;
 import io.github.railroad.project.settings.theme.Theme;
+import io.github.railroad.utility.ClosestDirectoryComparator;
 import javafx.beans.binding.BooleanBinding;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -94,12 +99,9 @@ public class Project {
         if (railroadFiles.isEmpty())
             return defaultRet;
 
-        final List<File> results = railroadFiles
-                .stream().filter(file -> file.getName()
-                        .equalsIgnoreCase("project.railroad"))
-                .sorted((file0, file1) -> file0.getAbsolutePath().replace('\\', '/').split("/").length < file1
-                        .getAbsolutePath().replace('\\', '/').split("/").length ? 1 : 0)
-                .toList();
+        final List<File> results = railroadFiles.stream()
+                .filter(file -> file.getName().equalsIgnoreCase("project.railroad"))
+                .sorted(new ClosestDirectoryComparator<>()).toList();
 
         if (results.isEmpty())
             return defaultRet;
@@ -115,7 +117,7 @@ public class Project {
         if (content.toString().isBlank())
             return defaultRet;
 
-        final ProjectInfo.Builder projectInfoBuilder = null;
+        ProjectInfo.Builder projectInfoBuilder = null;
         boolean valid = true;
         try {
             while (valid) {
@@ -128,11 +130,46 @@ public class Project {
                 }
 
                 // projectInfoBuilder = ProjectInfo.Builder.create(modType, projectName);
+                ModType modType = null;
+                String projectName = null;
                 final NodeList nodes = document.getDocumentElement().getChildNodes();
                 for (int nodeIndex = 0; nodeIndex < nodes.getLength(); nodeIndex++) {
                     final Node node = nodes.item(nodeIndex);
                     if (node.getNodeType() == Node.ELEMENT_NODE) {
+                        final String name = node.getNodeName().trim();
+                        switch (name) {
+                            case "ModType":
+                                modType = ModType.valueOf(name);
+                                break;
+                            case "ProjectName":
+                                final List<File> files = FileUtils
+                                        .listFiles(projectFile, FileFilterUtils.nameFileFilter(name),
+                                                FileFilterUtils.nameFileFilter(name))
+                                        .stream().sorted(new ClosestDirectoryComparator<>()).toList();
+                                if (files.isEmpty())
+                                    return defaultRet;
+                                final File result = files.get(0);
+                                if (result.exists()) {
+                                    projectName = name;
+                                }
+                                break;
+                        }
+                    }
+                }
 
+                projectInfoBuilder = ProjectInfo.Builder.create(modType, projectName);
+
+                for (int nodeIndex = 0; nodeIndex < nodes.getLength(); nodeIndex++) {
+                    final Node node = nodes.item(nodeIndex);
+                    if (node.getNodeType() == Node.ELEMENT_NODE) {
+                        final String name = node.getNodeName().trim();
+                        switch (name) {
+                            case "MinecraftVersion":
+                                final List<MinecraftVersion> versions = Stream.of(MinecraftVersion.values())
+                                        .filter(version -> version.versionName().equalsIgnoreCase(name))
+                                        .toList();
+
+                        }
                     }
                 }
             }
